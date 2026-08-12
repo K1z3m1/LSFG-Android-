@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LSFG-Android+</string>
+    <string name="credits_title">เครดิต</string>
+    <string name="credits_section_channel">ช่อง</string>
+    <string name="credits_section_base">โปรเจกต์ต้นทาง</string>
+    <string name="credits_section_license">สัญญาอนุญาต</string>
+    <string name="credits_license_body">อยู่ภายใต้สัญญาอนุญาต GNU GPL v3.0 สืบทอดจากโปรเจกต์ต้นทาง สามารถขอซอร์สโค้ดได้; แตะด้านบนเพื่ออ่านสัญญาอนุญาตฉบับเต็ม</string>
+    <string name="accessibility_service_label">LSFG-Android+ ส่งต่อการสัมผัส</string>
+    <string name="accessibility_service_description">ส่งต่อการสัมผัสจากโอเวอร์เลย์ของ LSFG-Android+ ไปยังแอปที่อยู่ด้านล่าง เพื่อให้คุณเล่นเกมได้ในขณะที่โอเวอร์เลย์สร้างเฟรมกำลังแสดงอยู่</string>
+
+    <string name="notif_channel_session">เซสชัน LSFG-Android+</string>
+    <string name="notif_session_title">เซสชัน LSFG-Android+ กำลังทำงาน</string>
+    <string name="notif_session_text">โอเวอร์เลย์สร้างเฟรมกำลังทำงานอยู่ แตะเพื่อหยุด</string>
+
+    <string name="legal_title">ประกาศทางกฎหมาย</string>
+    <string name="legal_warning_body"><![CDATA[
+        <b>คำเตือน — คุณต้องเป็นเจ้าของ Lossless Scaling บน Steam</b><br/><br/>
+        แอปนี้ต้องใช้ไฟล์ <b>Lossless.dll</b> จาก <b>Lossless Scaling</b> โดย THS
+        คุณต้องเลือกไฟล์นี้จาก <b>สำเนาที่คุณซื้อถูกต้องตามกฎหมาย</b> ของ Lossless Scaling บน Steam เท่านั้น<br/><br/>
+        <b>ห้ามดาวน์โหลด Lossless.dll จากแหล่งอื่นที่ไม่ใช่ Steam</b> การทำเช่นนั้นถือเป็นการละเมิดลิขสิทธิ์<br/><br/>
+        ผู้พัฒนาแอปนี้:<br/>
+        • <b>ไม่</b>แจกจ่าย Lossless.dll<br/>
+        • <b>ไม่มีส่วนเกี่ยวข้อง</b>กับ THS หรือ Lossless Scaling<br/>
+        • <b>ไม่รับผิดชอบ</b>ต่อการใช้งานแอปนี้ในทางที่ผิด<br/><br/>
+        การกดยืนยันแปลว่าคุณยืนยันว่าคุณมีสิทธิ์ใช้งาน Lossless Scaling บน Steam อย่างถูกต้อง
+    ]]></string>
+    <string name="legal_accept">ฉันเป็นเจ้าของสิทธิ์ Lossless Scaling — ดำเนินการต่อ</string>
+    <string name="legal_decline">ยกเลิก</string>
+
+    <string name="nav_home">หน้าหลัก</string>
+    <string name="nav_dll">เลือกไฟล์ DLL</string>
+    <string name="nav_params">พารามิเตอร์</string>
+    <string name="nav_frame_gen">การสร้างเฟรม</string>
+    <string name="nav_framegen_pacing">การสร้างเฟรมและการจัดจังหวะ</string>
+    <string name="nav_overlay_display">โอเวอร์เลย์และการแสดงผล</string>
+    <string name="nav_start">เริ่มเซสชัน</string>
+
+    <!-- Section eyebrows -->
+    <string name="section_frame_generation">การสร้างเฟรม</string>
+    <string name="section_pacing">การจัดจังหวะ</string>
+    <string name="section_overlay_mode">รูปแบบทางเข้าโอเวอร์เลย์</string>
+    <string name="section_overlay_handle">ที่จับโอเวอร์เลย์</string>
+    <string name="param_overlay_mode">รูปแบบโอเวอร์เลย์</string>
+    <string name="param_overlay_mode_desc">เลือกวิธีเปิดแผงตั้งค่าในเกม: ไอคอนลอยที่ลากได้ หรือลิ้นชักที่ปัดจากขอบจอ</string>
+    <string name="overlay_mode_icon_button">ปุ่มไอคอน</string>
+    <string name="overlay_mode_drawer">ลิ้นชัก</string>
+    <string name="overlay_mode_drawer_warning_title">ใช้ลิ้นชักแบบปัดหรือไม่?</string>
+    <string name="overlay_mode_drawer_warning_body">บางอุปกรณ์ลิ้นชักแบบปัดจากขอบจออาจไม่ตอบสนอง ทำให้คุณติดอยู่บนโอเวอร์เลย์โดยไม่มีทางปิดจากในเกม แนะนำให้ใช้ไอคอนลอยแทน ต้องการใช้ลิ้นชักต่อไปหรือไม่?</string>
+    <string name="overlay_mode_drawer_warning_confirm">ใช้ลิ้นชัก</string>
+    <string name="overlay_mode_drawer_warning_cancel">ยกเลิก</string>
+    <string name="section_hud">HUD</string>
+    <string name="section_trusted_overlay">การส่งต่อการสัมผัส</string>
+    <string name="param_trusted_overlay">โอเวอร์เลย์ที่เชื่อถือได้ (Accessibility)</string>
+    <string name="param_trusted_overlay_desc">แสดงโอเวอร์เลย์เป็นพื้นผิว Accessibility ที่เชื่อถือได้ เพื่อให้การแตะไปถึงแอปด้านล่างบนอุปกรณ์ที่เข้มงวด (เช่น Orange Pi 5 Ultra) ซึ่งปกติจะถูกบล็อก ข้อแลกเปลี่ยน: ขณะเซสชันทำงาน โอเวอร์เลย์จะบังแถบสถานะและแถบนำทาง — คุณจะดึงการแจ้งเตือนหรือแตะโฮม/ย้อนกลับไม่ได้ ปิดไว้ถ้าอุปกรณ์ของคุณส่งต่อการแตะได้อยู่แล้ว เปิดเฉพาะเมื่อแตะทะลุไม่ได้เท่านั้น ต้องเปิดใช้งานบริการ Accessibility ของ LSFG-Android+ ก่อน</string>
+    <string name="param_gesture_forwarding">สำรองการส่งต่อท่าทาง</string>
+    <string name="param_gesture_forwarding_desc">ตัวสำรองเพิ่มเติมสำหรับอุปกรณ์หายากที่การแตะยังไปไม่ถึงเกมแม้เปิดโอเวอร์เลย์ที่เชื่อถือได้แล้ว บริการ Accessibility จะจำลองการสัมผัสโดยตรงแทนการพึ่งการส่งต่อปกติ ใช้เฉพาะเมื่อโอเวอร์เลย์ที่เชื่อถือได้อย่างเดียวไม่แก้ปัญหาการแตะ — การเปิดทั้งสองอย่างพร้อมกันอาจทำให้แตะซ้ำซ้อน</string>
+    <string name="section_capture_mode">โหมดการจับภาพ</string>
+    <string name="capture_mode_mediaprojection">MediaProjection</string>
+    <string name="capture_mode_shizuku">Shizuku capture</string>
+    <string name="capture_mode_root">Root capture</string>
+    <string name="capture_mode_desc">MediaProjection จับภาพผ่านการแชร์หน้าจอของ Android ส่วน Shizuku และ Root capture ใช้เส้นทางจับภาพเป้าหมายแบบกรอง UID ที่มีสิทธิ์สูงกว่า มีประโยชน์กับอุปกรณ์ที่ MediaProjection รวมโอเวอร์เลย์เข้าไปด้วย</string>
+    <string name="param_frame_graph">กราฟจังหวะเฟรม</string>
+    <string name="param_frame_graph_desc">แสดงกราฟช่วงเวลาของเฟรมที่สร้างขึ้นแบบเรียลไทม์บนโอเวอร์เลย์ มีประโยชน์สำหรับวินิจฉัยอาการกระตุก</string>
+
+    <string name="dll_status_none">ยังไม่ได้เลือกไฟล์ Lossless.dll</string>
+    <string name="dll_status_ready">Lossless.dll พร้อมใช้งาน (%1$s)</string>
+    <string name="dll_pick_button">เลือก Lossless.dll</string>
+    <string name="dll_reextract_button">แตกไฟล์เชเดอร์ใหม่</string>
+
+    <string name="section_framegen_backend">แบ็กเอนด์การสร้างเฟรม</string>
+    <string name="backend_lsfg_dll">Lossless.dll</string>
+    <string name="backend_ncnn_ai">โมเดล AI (ncnn)</string>
+    <string name="backend_desc">Lossless.dll ใช้ไพพ์ไลน์เชเดอร์ LSFG แบบ Vulkan ส่วนโมเดล AI (ncnn) ใช้ตัวแทรกเฟรม FlowNetLite/RefineNetLite ที่คุณฝึกและส่งออกจากโน้ตบุ๊ก ต้องมีเฉพาะแหล่งของแบ็กเอนด์ที่เปิดใช้งานอยู่เท่านั้นที่พร้อมใช้เพื่อเริ่มเซสชัน</string>
+
+    <string name="ai_model_status_none">กำลังตรวจสอบโมเดลที่แนบมากับแอป…</string>
+    <string name="ai_model_status_ready">โหลดโมเดลแล้ว — %1$s (%2$s)</string>
+    <string name="ai_model_status_failed">โหลดโมเดลไม่สำเร็จ: %1$s</string>
+    <string name="ai_model_test_load_button">ทดสอบโหลดโมเดล</string>
+    <string name="ai_model_source_desc">rife-v4.25-lite_ensembleFalse ติดตั้งมากับแอปแล้ว (assets/models/) — ไม่ต้องเลือกหรือนำเข้าเพิ่ม ความละเอียด FP16 ถูกกำหนดตายตัวไว้ในไฟล์น้ำหนักที่แนบมา สวิตช์ด้านล่างควบคุมเฉพาะตำแหน่งที่ประมวลผล (GPU หรือ CPU) ไม่เกี่ยวกับความละเอียด</string>
+
+    <string name="param_multiplier">ตัวคูณเฟรม</string>
+    <string name="param_multiplier_desc">จำนวนเฟรมที่สร้างต่อเฟรมจริงหนึ่งเฟรม 2 = แทรกเฟรมหนึ่งเฟรมระหว่างแต่ละคู่ แนะนำ 3–4 สำหรับมือถือ</string>
+    <string name="param_flow_scale">สเกลการประมาณการเคลื่อนไหว</string>
+    <string name="param_flow_scale_desc">ความละเอียดในการประมาณการเคลื่อนไหวภายใน ยิ่งต่ำยิ่งเร็วแต่แม่นยำน้อยลง</string>
+    <string name="param_flow_scale_desc_ai">ลดความละเอียดเฉพาะอินพุตของ FlowNetLite (การประมาณการเคลื่อนไหว) — RefineNetLite ยังทำงานที่ความละเอียดเต็ม ดังนั้นคุณภาพภาพจึงดีกว่าที่ตัวเลขนี้บ่งบอกเพียงอย่างเดียว ยิ่งต่ำยิ่งเร็วแต่การเคลื่อนไหวแม่นยำน้อยลง ตรงกับ flow_scale_percent จากการส่งออกแบบแยกส่วนของโน้ตบุ๊กฝึกโมเดล</string>
+    <string name="param_render_resolution_scale">ความละเอียดในการเรนเดอร์</string>
+    <string name="param_render_resolution_scale_desc">เปอร์เซ็นต์ของความละเอียดจริงของจอที่จะใช้จับภาพและเรนเดอร์ ค่ายิ่งต่ำยิ่งลดภาระ GPU ในทุกขั้นตอน ทั้งการจับภาพ การสร้างเฟรม และการประมวลผลภายหลัง แลกกับภาพที่นวลขึ้น มีผลเมื่อเริ่มจับภาพครั้งถัดไป</string>
+    <string name="param_performance_mode">โหมดประสิทธิภาพ (LSFG 3.1P)</string>
+    <string name="param_performance_mode_desc">ใช้เชเดอร์รุ่นที่เร็วขึ้นแต่คุณภาพต่ำลง แนะนำสำหรับ GPU ระดับกลาง</string>
+    <string name="param_hdr">โหมด HDR</string>
+    <string name="param_hdr_desc">เปิดใช้เฉพาะเมื่ออุปกรณ์และเกมของคุณส่งออกภาพแบบ HDR</string>
+    <string name="param_framegen_fp16">เชเดอร์สร้างเฟรมแบบ FP16</string>
+    <string name="param_framegen_fp16_desc">ใช้เชเดอร์ความละเอียดครึ่งหนึ่งที่คอมไพล์ไว้ล่วงหน้าใน Lossless.dll แทนชุด FP32 ความละเอียดเต็ม ลดภาระ GPU และแบนด์วิดท์หน่วยความจำ คุณภาพแทบไม่ต่างกัน หากเกิดปัญหาจะสลับกลับไปใช้ FP32 โดยอัตโนมัติ</string>
+    <string name="param_fps_counter">ตัวนับ FPS บนโอเวอร์เลย์</string>
+    <string name="param_fps_counter_desc">แสดงตัวเลข FPS ขนาดเล็กที่มุมซ้ายบนของโอเวอร์เลย์ MediaProjection นับเฟรมที่จับภาพได้ ส่วน Shizuku capture นับเฟรมเป้าหมายที่กรอง UID แบบมีสิทธิ์สูง</string>
+    <string name="param_drawer_edge">ตำแหน่งที่จับลิ้นชัก</string>
+    <string name="param_drawer_edge_desc">เลือกตำแหน่งที่จับลิ้นชักในเกมจะปรากฏบนโอเวอร์เลย์</string>
+    <string name="drawer_edge_left">ซ้าย</string>
+    <string name="drawer_edge_right">ขวา</string>
+    <string name="drawer_edge_top">บน</string>
+    <string name="drawer_edge_bottom">ล่าง</string>
+
+    <string name="app_picker_title">เลือกแอปเป้าหมาย</string>
+    <string name="app_picker_hint">เลือกเกมหรือแอปที่ต้องการใช้การสร้างเฟรม แอปนี้จะถูกเปิดขึ้นเมื่อคุณเริ่มเซสชัน</string>
+
+    <string name="nav_automatic_overlay">โอเวอร์เลย์อัตโนมัติ</string>
+    <string name="automatic_overlay_title">โอเวอร์เลย์อัตโนมัติ</string>
+    <string name="automatic_overlay_hint">เลือกแอปที่ต้องการให้ไอคอนเปิด LSFG-Android+ ปรากฏขึ้นอัตโนมัติเมื่อเปิดจากหน้าจอหลัก ไอคอนลอยขนาดเล็กจะปรากฏทับเกม แตะเพื่อเริ่มโอเวอร์เลย์สร้างเฟรม</string>
+    <string name="automatic_overlay_a11y_required">เปิดใช้งานบริการ Accessibility ของ LSFG-Android+ เพื่อให้แอปตรวจจับได้เมื่อเปิดหนึ่งในเกมที่เลือกไว้</string>
+    <string name="automatic_overlay_a11y_action">เปิดการตั้งค่า Accessibility</string>
+    <string name="automatic_overlay_count_zero">ยังไม่มี — แตะเพื่อเพิ่ม</string>
+    <string name="automatic_overlay_count_n">ตั้งค่าไว้ %1$d แอป</string>
+    <string name="auto_overlay_sheet_target">แอปที่กำลังเปิด</string>
+    <string name="auto_overlay_sheet_activate">เปิดใช้งานโอเวอร์เลย์สร้างเฟรม</string>
+    <string name="auto_overlay_sheet_disable">ปิดโอเวอร์เลย์อัตโนมัติสำหรับแอปนี้</string>
+    <string name="auto_overlay_sheet_close">ปิด</string>
+    <string name="auto_overlay_sheet_intro">แตะเพื่อเริ่มเซสชันจับภาพของ LSFG-Android+ สำหรับแอปนี้ Android จะขอให้คุณยืนยันการบันทึกหน้าจอ</string>
+
+    <string name="start_button">เริ่มเซสชัน LSFG-Android+</string>
+    <string name="stop_button">หยุดเซสชัน</string>
+    <string name="session_button_start">เริ่มเซสชัน</string>
+    <string name="session_button_stop">หยุดเซสชัน</string>
+    <string name="session_start_hint">เริ่มเซสชันได้จากที่จับโอเวอร์เลย์อัตโนมัติด้านล่าง (ขั้นตอนที่ 4)</string>
+
+    <string name="language_menu_item">ภาษา</string>
+    <string name="language_system">ค่าเริ่มต้นของระบบ</string>
+    <string name="language_english">English</string>
+    <string name="language_thai">ไทย</string>
+    <string name="language_apply">นำไปใช้</string>
+
+    <string name="credits_section_myproject">โปรเจกต์ของฉัน</string>
+    <string name="credits_section_libraries">ไลบรารีจากบุคคลที่สาม</string>
+
+    <string name="perm_overlay_missing">ต้องได้รับสิทธิ์แสดงผลทับแอปอื่นก่อน กรุณาอนุญาต "แสดงผลทับแอปอื่น"</string>
+    <string name="perm_accessibility_missing">ต้องเปิดใช้งานบริการ Accessibility ของ LSFG-Android+ เพื่อให้การสัมผัสส่งผ่านโอเวอร์เลย์ได้</string>
+    <string name="perm_capture_denied">การจับภาพหน้าจอถูกปฏิเสธ LSFG-Android+ ไม่สามารถทำงานได้หากไม่มีสิทธิ์นี้</string>
+
+    <string name="limitation_title">เกี่ยวกับเวอร์ชันทดลองนี้</string>
+    <string name="limitation_body">บน Android ที่ไม่ได้รูท LSFG-Android+ ไม่สามารถแทรกเข้าไปใน Vulkan context ของแอปอื่นได้เหมือนบน Linux MediaProjection คือเส้นทางจับภาพมาตรฐาน ส่วน Shizuku capture สามารถใช้เส้นทางจับภาพเป้าหมายแบบกรอง UID ที่มีสิทธิ์สูงกว่าได้ในบางรุ่น และต้องใช้ Shizuku ร่วมกับ ADB หรือ wireless debugging ที่เปิดใช้งานอยู่ ดูรายละเอียดเพิ่มเติมได้ที่ README</string>
+
+    <string name="a11y_info">ไม่บังคับ LSFG-Android+ เรนเดอร์แบบทึบเต็มและส่งต่อการสัมผัสไปยังเกมได้โดยไม่ต้องใช้บริการนี้ เปิดใช้เฉพาะเมื่อพบปัญหาการเรนเดอร์บนอุปกรณ์บางรุ่นเท่านั้น</string>
+
+    <string name="crash_dialog_title">LSFG-Android+ ขัดข้องในการทำงานครั้งล่าสุด</string>
+    <string name="crash_dialog_body">มีการบันทึกรายงานไว้แล้ว คุณสามารถแชร์ให้ผู้พัฒนาเพื่อช่วยแก้ไขปัญหาได้ ข้อมูลอุปกรณ์และส่วนขยายถูกรวมไว้ให้แล้ว — ไม่มีข้อมูลส่วนตัวแนบไปด้วย</string>
+    <string name="crash_dialog_share">แชร์รายงาน</string>
+    <string name="crash_dialog_dismiss">ปิด</string>
+    <string name="crash_dialog_view">ดูรายละเอียด</string>
+    <string name="crash_export_log">ส่งออกล็อกวินิจฉัย</string>
+    <string name="battery_exempt_menu_item">ยกเว้นการปรับแบตเตอรี่</string>
+    <string name="crash_export_none">ยังไม่มีล็อกวินิจฉัย — โปรดรันเซสชันก่อน</string>
+
+</resources>
