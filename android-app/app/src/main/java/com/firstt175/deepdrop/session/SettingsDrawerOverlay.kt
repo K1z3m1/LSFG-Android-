@@ -31,9 +31,6 @@ import com.firstt175.deepdrop.prefs.DrawerEdge
 import com.firstt175.deepdrop.prefs.FramegenBackend
 import com.firstt175.deepdrop.prefs.LsfgPreferences
 import com.firstt175.deepdrop.prefs.OverlayMode
-import com.firstt175.deepdrop.prefs.PacingDefaults
-import com.firstt175.deepdrop.prefs.PacingPreset
-import com.firstt175.deepdrop.prefs.VsyncRefreshOverride
 import java.io.File
 
 /**
@@ -75,10 +72,6 @@ class SettingsDrawerOverlay(
         fun onParamsChanged()
     }
 
-    fun interface VsyncAlignmentListener {
-        fun onVsyncAlignmentChanged(enabled: Boolean)
-    }
-
     private var hostWindowManager: WindowManager? = null
     private var root: FrameLayout? = null
     private var handleView: HandleView? = null
@@ -91,7 +84,6 @@ class SettingsDrawerOverlay(
     private var fpsCounterListener: FpsCounterListener? = null
     private var frameGraphListener: FrameGraphListener? = null
     private var liveParamsListener: LiveParamsListener? = null
-    private var vsyncAlignmentListener: VsyncAlignmentListener? = null
     private var initialFpsCounter: Boolean = false
     private var initialFrameGraph: Boolean = false
 
@@ -170,7 +162,6 @@ class SettingsDrawerOverlay(
     fun setFpsCounterListener(l: FpsCounterListener) { fpsCounterListener = l }
     fun setFrameGraphListener(l: FrameGraphListener) { frameGraphListener = l }
     fun setLiveParamsListener(l: LiveParamsListener) { liveParamsListener = l }
-    fun setVsyncAlignmentListener(l: VsyncAlignmentListener) { vsyncAlignmentListener = l }
     fun setInitialFpsCounterState(enabled: Boolean) { initialFpsCounter = enabled }
     fun setInitialFrameGraphState(enabled: Boolean) { initialFrameGraph = enabled }
 
@@ -662,10 +653,6 @@ class SettingsDrawerOverlay(
         })
 
         panel.addView(divider())
-
-        // ---- Pacing (separate section — was previously nested inside frame gen) ---------
-        val pacingSection = collapsibleSection(panel, "PACING")
-        buildPacingControls(pacingSection, prefs, initial)
 
         panel.addView(divider())
 
@@ -1193,310 +1180,6 @@ class SettingsDrawerOverlay(
                 runCatching {
                     audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, p, 0)
                 }.onFailure { Log.w(TAG, "setStreamVolume failed", it) }
-            }
-        })
-    }
-
-    private fun buildPacingControls(
-        parent: LinearLayout,
-        prefs: LsfgPreferences,
-        initial: com.firstt175.deepdrop.prefs.LsfgConfig,
-    ) {
-        // Section title is provided by the parent collapsibleSection — don't emit one here.
-
-        // Forward-declare widgets so the preset chip row can mutate them.
-        val emaValue = TextView(ctx).apply {
-            setTextColor(COLOR_PRIMARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = android.graphics.Typeface.create(typeface, android.graphics.Typeface.BOLD)
-        }
-        val outlierValue = TextView(ctx).apply {
-            setTextColor(COLOR_PRIMARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = android.graphics.Typeface.create(typeface, android.graphics.Typeface.BOLD)
-        }
-        val slackValue = TextView(ctx).apply {
-            setTextColor(COLOR_PRIMARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = android.graphics.Typeface.create(typeface, android.graphics.Typeface.BOLD)
-        }
-        val emaBar = SeekBar(ctx)
-        val outlierBar = SeekBar(ctx)
-        val slackBar = SeekBar(ctx)
-
-        // Guard flag: true while we programmatically update sliders via preset so
-        // their onProgressChanged doesn't flip the preset back to CUSTOM.
-        var applyingPreset = false
-
-        var currentPreset = initial.pacingPreset
-
-        // Pushes the current tunables down to the native render loop without
-        // re-creating the context.
-        fun pushPacing() {
-            val cfg = prefs.load()
-            val p = PacingDefaults.forPreset(
-                cfg.pacingPreset,
-                PacingDefaults.Params(cfg.emaAlpha, cfg.outlierRatio, cfg.vsyncSlackMs),
-            )
-            runCatching {
-                NativeBridge.setPacingParams(
-                    p.emaAlpha,
-                    p.outlierRatio,
-                    p.vsyncSlackMs,
-                )
-            }
-        }
-
-        // Preset chip row with in-place visual updates (chips keep their views
-        // and only toggle colors, so the click never fights a view re-parent).
-        val presetItems = listOf(
-            PacingPreset.SMOOTH to "Smooth",
-            PacingPreset.BALANCED to "Balanced",
-            PacingPreset.LOW_LATENCY to "Low-latency",
-            PacingPreset.CUSTOM to "Custom",
-        )
-        val presetBtns = mutableListOf<Button>()
-        fun paintPresetChips(selected: PacingPreset) {
-            presetBtns.forEachIndexed { i, btn ->
-                val isSel = presetItems[i].first == selected
-                btn.setTextColor(if (isSel) COLOR_PANEL_BG else COLOR_ON_SURFACE)
-                (btn.background as? GradientDrawable)?.setColor(
-                    if (isSel) COLOR_PRIMARY else COLOR_CHIP_BG,
-                )
-            }
-        }
-        val presetRow = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(8))
-        }
-        presetItems.forEach { (preset, label) ->
-            val btn = Button(ctx).apply {
-                text = label
-                isAllCaps = false
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(10).toFloat()
-                }
-                setPadding(dp(4), dp(4), dp(4), dp(4))
-            }
-            presetBtns.add(btn)
-            presetRow.addView(
-                btn,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    leftMargin = dp(2)
-                    rightMargin = dp(2)
-                },
-            )
-        }
-        parent.addView(presetRow)
-
-        fun applyPreset(preset: PacingPreset) {
-            currentPreset = preset
-            prefs.setPacingPreset(preset)
-            paintPresetChips(preset)
-            if (preset != PacingPreset.CUSTOM) {
-                applyingPreset = true
-                val p = PacingDefaults.forPreset(preset, PacingDefaults.Params(0f, 0f, 0f))
-                prefs.setEmaAlpha(p.emaAlpha)
-                prefs.setOutlierRatio(p.outlierRatio)
-                prefs.setVsyncSlackMs(p.vsyncSlackMs)
-                emaBar.progress = (((p.emaAlpha - 0.05f) / 0.01f).toInt()).coerceIn(0, 45)
-                outlierBar.progress = (((p.outlierRatio - 2.0f) / 0.5f).toInt()).coerceIn(0, 12)
-                slackBar.progress = (((p.vsyncSlackMs - 1.0f) / 0.5f).toInt()).coerceIn(0, 8)
-                emaValue.text = "%.2f".format(p.emaAlpha)
-                outlierValue.text = "%.1f×".format(p.outlierRatio)
-                slackValue.text = "%.1f ms".format(p.vsyncSlackMs)
-                applyingPreset = false
-            }
-            pushPacing()
-        }
-        presetBtns.forEachIndexed { i, btn ->
-            btn.setOnClickListener { applyPreset(presetItems[i].first) }
-        }
-        paintPresetChips(currentPreset)
-
-        // VSYNC alignment switch + refresh override chip row.
-        parent.addView(switchRow(
-            label = "VSYNC-aligned pacing",
-            initial = initial.vsyncAlignmentEnabled,
-        ) { on ->
-            prefs.setVsyncAlignmentEnabled(on)
-            // Hot-apply: 0 period disables alignment in the native pacer.
-            if (!on) {
-                runCatching { NativeBridge.setVsyncPeriodNs(0L) }
-            } else {
-                val override = prefs.load().vsyncRefreshOverride
-                if (override != VsyncRefreshOverride.AUTO && override.hz > 0) {
-                    val periodNs = (1_000_000_000.0 / override.hz).toLong()
-                    runCatching { NativeBridge.setVsyncPeriodNs(periodNs) }
-                }
-                // For ON+AUTO we don't know the display rate from here; the
-                // OverlayManager live-vsync tracker (re-armed below) measures
-                // and pushes it once its EMA settles.
-            }
-            // Tell the capture overlay's live vsync tracker about the change too —
-            // without this, trackLiveVsync() (hardcoded on before this fix) would
-            // silently push its own measured period back a fraction of a second
-            // after the user turned pacing off. See OverlayManager.setVsyncAlignmentEnabled.
-            vsyncAlignmentListener?.onVsyncAlignmentChanged(on)
-        })
-
-        val refreshItems = listOf(
-            VsyncRefreshOverride.AUTO to "Auto",
-            VsyncRefreshOverride.HZ_60 to "60",
-            VsyncRefreshOverride.HZ_90 to "90",
-            VsyncRefreshOverride.HZ_120 to "120",
-            VsyncRefreshOverride.HZ_144 to "144",
-        )
-        val refreshBtns = mutableListOf<Button>()
-        fun paintRefreshChips(selected: VsyncRefreshOverride) {
-            refreshBtns.forEachIndexed { i, btn ->
-                val isSel = refreshItems[i].first == selected
-                btn.setTextColor(if (isSel) COLOR_PANEL_BG else COLOR_ON_SURFACE)
-                (btn.background as? GradientDrawable)?.setColor(
-                    if (isSel) COLOR_PRIMARY else COLOR_CHIP_BG,
-                )
-            }
-        }
-        val refreshRow = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(8))
-        }
-        refreshItems.forEach { (option, label) ->
-            val btn = Button(ctx).apply {
-                text = label
-                isAllCaps = false
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(10).toFloat()
-                }
-                setPadding(dp(4), dp(4), dp(4), dp(4))
-                setOnClickListener {
-                    prefs.setVsyncRefreshOverride(option)
-                    paintRefreshChips(option)
-                    if (prefs.load().vsyncAlignmentEnabled && option.hz > 0) {
-                        val periodNs = (1_000_000_000.0 / option.hz).toLong()
-                        runCatching { NativeBridge.setVsyncPeriodNs(periodNs) }
-                    }
-                }
-            }
-            refreshBtns.add(btn)
-            refreshRow.addView(
-                btn,
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    leftMargin = dp(2)
-                    rightMargin = dp(2)
-                },
-            )
-        }
-        parent.addView(refreshRow)
-        paintRefreshChips(initial.vsyncRefreshOverride)
-
-        // ---- Advanced collapsible ----------------------------------------------------
-        val advanced = collapsibleSection(parent, "ADVANCED", initiallyExpanded = false)
-        advanced.addView(TextView(ctx).apply {
-            text = "Manual changes switch preset to Custom. Misconfiguring these may reduce smoothness."
-            setTextColor(COLOR_ON_SURFACE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            alpha = 0.7f
-            setPadding(0, dp(4), 0, dp(8))
-        })
-
-        // Slider helper local to this builder so each slider can force preset→CUSTOM.
-        // onCommit writes a SharedPreferences entry; we coalesce it to the slider
-        // release event during drag (avoids ~60 prefs writes/sec). The live native
-        // push (pushPacing) stays per-tick — it is in-process and cheap.
-        fun attachAdvancedSlider(
-            bar: SeekBar,
-            valueView: TextView,
-            format: (Float) -> String,
-            min: Float,
-            step: Float,
-            steps: Int,
-            initialValue: Float,
-            onCommit: (Float) -> Unit,
-        ) {
-            bar.max = steps
-            bar.progress = (((initialValue - min) / step).toInt()).coerceIn(0, steps)
-            bar.progressDrawable = buildSeekTrack()
-            bar.thumb = buildSeekThumb()
-            bar.splitTrack = false
-            valueView.text = format(initialValue)
-            var dragging = false
-            var pendingValue = initialValue
-            bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, p: Int, fromUser: Boolean) {
-                    val v = min + p * step
-                    valueView.text = format(v)
-                    if (fromUser && !applyingPreset) {
-                        pendingValue = v
-                        if (!dragging) {
-                            // Tap (not drag) — commit prefs immediately.
-                            onCommit(v)
-                        }
-                        if (currentPreset != PacingPreset.CUSTOM) {
-                            currentPreset = PacingPreset.CUSTOM
-                            prefs.setPacingPreset(PacingPreset.CUSTOM)
-                            paintPresetChips(PacingPreset.CUSTOM)
-                        }
-                        pushPacing()
-                    }
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) { dragging = true }
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    dragging = false
-                    if (!applyingPreset) {
-                        onCommit(pendingValue)
-                    }
-                }
-            })
-        }
-
-        advanced.addView(sliderRow("EMA alpha", emaValue))
-        attachAdvancedSlider(
-            emaBar, emaValue, { "%.2f".format(it) },
-            min = 0.05f, step = 0.01f, steps = 45,
-            initialValue = initial.emaAlpha,
-        ) { prefs.setEmaAlpha(it) }
-        advanced.addView(emaBar)
-        advanced.addView(sectionSpacer(8))
-
-        advanced.addView(sliderRow("Outlier ratio", outlierValue))
-        attachAdvancedSlider(
-            outlierBar, outlierValue, { "%.1f×".format(it) },
-            min = 2.0f, step = 0.5f, steps = 12,
-            initialValue = initial.outlierRatio,
-        ) { prefs.setOutlierRatio(it) }
-        advanced.addView(outlierBar)
-        advanced.addView(sectionSpacer(8))
-
-        advanced.addView(sliderRow("VSYNC slack", slackValue))
-        attachAdvancedSlider(
-            slackBar, slackValue, { "%.1f ms".format(it) },
-            min = 1.0f, step = 0.5f, steps = 8,
-            initialValue = initial.vsyncSlackMs,
-        ) { prefs.setVsyncSlackMs(it) }
-        advanced.addView(slackBar)
-        advanced.addView(sectionSpacer(12))
-
-        // Reset button.
-        advanced.addView(Button(ctx).apply {
-            text = "Reset to defaults"
-            isAllCaps = false
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setTextColor(COLOR_PANEL_BG)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                setColor(COLOR_PRIMARY)
-                cornerRadius = dp(10).toFloat()
-            }
-            setOnClickListener {
-                // applyPreset handles prefs + slider refresh + paint + pushPacing.
-                applyPreset(PacingPreset.BALANCED)
             }
         })
     }

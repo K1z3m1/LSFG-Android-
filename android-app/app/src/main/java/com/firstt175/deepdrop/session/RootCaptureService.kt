@@ -21,7 +21,6 @@ class RootCaptureService : RootService() {
             targetUid: Int,
             width: Int,
             height: Int,
-            maxFps: Int,
             callback: IShizukuFrameCallback,
         ) {
             stopCapture()

@@ -9,9 +9,6 @@ import com.firstt175.deepdrop.prefs.LsfgPreferences
 import com.firstt175.deepdrop.prefs.OverlayMode
 import com.firstt175.deepdrop.prefs.RifeModel
 import com.firstt175.deepdrop.prefs.IfrnetModel
-import com.firstt175.deepdrop.prefs.PacingDefaults
-import com.firstt175.deepdrop.prefs.PacingPreset
-import com.firstt175.deepdrop.prefs.VsyncRefreshOverride
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -43,12 +40,6 @@ private val shared: MutableStateFlow<LsfgConfig> = MutableStateFlow(
         frameGraphEnabled = false,
         drawerEdge = DrawerEdge.RIGHT,
         overlayMode = OverlayMode.ICON_BUTTON,
-        pacingPreset = PacingPreset.BALANCED,
-        vsyncAlignmentEnabled = PacingDefaults.VSYNC_ALIGNMENT,
-        vsyncRefreshOverride = VsyncRefreshOverride.AUTO,
-        emaAlpha = PacingDefaults.EMA_ALPHA,
-        outlierRatio = PacingDefaults.OUTLIER_RATIO,
-        vsyncSlackMs = PacingDefaults.VSYNC_SLACK_MS,
         autoEnabledApps = emptySet(),
         trustedOverlay = false,
         gestureForwardingEnabled = false,

@@ -1,12 +1,8 @@
 package com.firstt175.deepdrop.ui
 
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,7 +59,6 @@ import com.firstt175.deepdrop.ui.components.LsfgTopBar
 import com.firstt175.deepdrop.ui.components.SectionHeader
 import com.firstt175.deepdrop.ui.components.ToggleRow
 import com.firstt175.deepdrop.ui.components.ValueSlider
-import com.firstt175.deepdrop.ui.theme.LsfgPrimary
 
 // ----------------------------------------------------------------------------------------
 // Frame generation & pacing — consolidated screen
@@ -336,26 +331,6 @@ fun ParamsFrameGenPacingScreen(nav: NavHostController) {
                 },
             )
         }
-
-        // ---- Pacing -----------------------------------------------------------------
-        LsfgCard {
-            SectionHeader(eyebrow = stringResource(R.string.section_pacing), title = null)
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = "Pacing controls timing of generated frames — preset and VSYNC alignment. Full pacing tuning is only available in the in-game overlay (advanced EMA/slack/queue sliders).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Current preset: ${state.pacingPreset.name.lowercase().replaceFirstChar { it.uppercase() }}" +
-                    " · VSYNC-aligned: ${if (state.vsyncAlignmentEnabled) "on" else "off"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = LsfgPrimary,
-            )
-        }
-
         TailNote()
     }
 }

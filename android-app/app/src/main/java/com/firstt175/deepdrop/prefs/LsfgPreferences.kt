@@ -41,12 +41,6 @@ data class LsfgConfig(
     val frameGraphEnabled: Boolean,
     val drawerEdge: DrawerEdge,
     val overlayMode: OverlayMode,
-    val pacingPreset: PacingPreset,
-    val vsyncAlignmentEnabled: Boolean,
-    val vsyncRefreshOverride: VsyncRefreshOverride,
-    val emaAlpha: Float,
-    val outlierRatio: Float,
-    val vsyncSlackMs: Float,
     val autoEnabledApps: Set<String>,
     val trustedOverlay: Boolean,
     /**
@@ -172,46 +166,6 @@ enum class CaptureSource(val prefValue: String) {
     }
 }
 
-enum class PacingPreset(val prefValue: String) {
-    SMOOTH("smooth"),
-    BALANCED("balanced"),
-    LOW_LATENCY("low_latency"),
-    CUSTOM("custom");
-
-    companion object {
-        fun fromPref(value: String?): PacingPreset =
-            values().firstOrNull { it.prefValue == value } ?: BALANCED
-    }
-}
-
-enum class VsyncRefreshOverride(val prefValue: String, val hz: Int) {
-    AUTO("auto", 0),
-    HZ_60("60", 60),
-    HZ_90("90", 90),
-    HZ_120("120", 120),
-    HZ_144("144", 144);
-
-    companion object {
-        fun fromPref(value: String?): VsyncRefreshOverride =
-            values().firstOrNull { it.prefValue == value } ?: AUTO
-    }
-}
-
-object PacingDefaults {
-    const val EMA_ALPHA: Float = 0.125f
-    const val OUTLIER_RATIO: Float = 4.0f
-    const val VSYNC_SLACK_MS: Float = 2.0f
-    const val VSYNC_ALIGNMENT: Boolean = true
-
-    data class Params(val emaAlpha: Float, val outlierRatio: Float, val vsyncSlackMs: Float)
-
-    fun forPreset(preset: PacingPreset, custom: Params): Params = when (preset) {
-        PacingPreset.SMOOTH -> Params(0.08f, 6.0f, 3.0f)
-        PacingPreset.BALANCED -> Params(EMA_ALPHA, OUTLIER_RATIO, VSYNC_SLACK_MS)
-        PacingPreset.LOW_LATENCY -> Params(0.2f, 3.0f, 1.5f)
-        PacingPreset.CUSTOM -> custom
-    }
-}
 
 class LsfgPreferences(ctx: Context) {
 
@@ -239,12 +193,6 @@ class LsfgPreferences(ctx: Context) {
         frameGraphEnabled = prefs.getBoolean(KEY_FRAME_GRAPH, false),
         drawerEdge = DrawerEdge.fromPref(prefs.getString(KEY_DRAWER_EDGE, null)),
         overlayMode = OverlayMode.fromPref(prefs.getString(KEY_OVERLAY_MODE, null)),
-        pacingPreset = PacingPreset.fromPref(prefs.getString(KEY_PACING_PRESET, null)),
-        vsyncAlignmentEnabled = prefs.getBoolean(KEY_VSYNC_ALIGN, PacingDefaults.VSYNC_ALIGNMENT),
-        vsyncRefreshOverride = VsyncRefreshOverride.fromPref(prefs.getString(KEY_VSYNC_OVERRIDE, null)),
-        emaAlpha = prefs.getFloat(KEY_EMA_ALPHA, PacingDefaults.EMA_ALPHA).coerceIn(0.05f, 0.5f),
-        outlierRatio = prefs.getFloat(KEY_OUTLIER_RATIO, PacingDefaults.OUTLIER_RATIO).coerceIn(2.0f, 8.0f),
-        vsyncSlackMs = prefs.getFloat(KEY_VSYNC_SLACK_MS, PacingDefaults.VSYNC_SLACK_MS).coerceIn(1.0f, 5.0f),
         autoEnabledApps = decodeAutoEnabledApps(prefs.getString(KEY_AUTO_ENABLED_APPS, null)),
         trustedOverlay = prefs.getBoolean(KEY_TRUSTED_OVERLAY, false),
         gestureForwardingEnabled = prefs.getBoolean(KEY_GESTURE_FORWARDING, false),
@@ -305,16 +253,6 @@ class LsfgPreferences(ctx: Context) {
         .putString(KEY_OVERLAY_MODE, value.prefValue)
         .apply()
 
-    fun setPacingPreset(value: PacingPreset) = prefs.edit()
-        .putString(KEY_PACING_PRESET, value.prefValue)
-        .apply()
-    fun setVsyncAlignmentEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_VSYNC_ALIGN, value).apply()
-    fun setVsyncRefreshOverride(value: VsyncRefreshOverride) = prefs.edit()
-        .putString(KEY_VSYNC_OVERRIDE, value.prefValue)
-        .apply()
-    fun setEmaAlpha(value: Float) = prefs.edit().putFloat(KEY_EMA_ALPHA, value.coerceIn(0.05f, 0.5f)).apply()
-    fun setOutlierRatio(value: Float) = prefs.edit().putFloat(KEY_OUTLIER_RATIO, value.coerceIn(2.0f, 8.0f)).apply()
-    fun setVsyncSlackMs(value: Float) = prefs.edit().putFloat(KEY_VSYNC_SLACK_MS, value.coerceIn(1.0f, 5.0f)).apply()
 
     fun setTrustedOverlay(value: Boolean) = prefs.edit().putBoolean(KEY_TRUSTED_OVERLAY, value).apply()
 
@@ -390,12 +328,6 @@ class LsfgPreferences(ctx: Context) {
         private const val KEY_FRAME_GRAPH = "frame_graph"
         private const val KEY_DRAWER_EDGE = "drawer_edge"
         private const val KEY_OVERLAY_MODE = "overlay_mode"
-        private const val KEY_PACING_PRESET = "pacing_preset"
-        private const val KEY_VSYNC_ALIGN = "vsync_alignment"
-        private const val KEY_VSYNC_OVERRIDE = "vsync_refresh_override"
-        private const val KEY_EMA_ALPHA = "pacing_ema_alpha"
-        private const val KEY_OUTLIER_RATIO = "pacing_outlier_ratio"
-        private const val KEY_VSYNC_SLACK_MS = "pacing_vsync_slack_ms"
         private const val KEY_AUTO_ENABLED_APPS = "auto_enabled_apps"
         private const val KEY_TRUSTED_OVERLAY = "trusted_overlay"
         private const val KEY_GESTURE_FORWARDING = "gesture_forwarding_enabled"

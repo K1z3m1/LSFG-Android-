@@ -1,6 +1,5 @@
 package com.firstt175.deepdrop.session
 
-import android.hardware.HardwareBuffer
 import android.util.Log
 import com.firstt175.deepdrop.shizuku.IShizukuCaptureService
 import com.firstt175.deepdrop.shizuku.IShizukuFrameCallback
@@ -15,7 +14,6 @@ class ShizukuCaptureUserService : IShizukuCaptureService.Stub() {
         targetUid: Int,
         width: Int,
         height: Int,
-        maxFps: Int,
         callback: IShizukuFrameCallback,
     ) {
         stopCapture()
@@ -84,7 +82,6 @@ class ShizukuCaptureUserService : IShizukuCaptureService.Stub() {
             }
         }
     }
-
 
     companion object {
         private const val TAG = "ShizukuUserCapture"

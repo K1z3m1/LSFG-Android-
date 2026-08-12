@@ -16,7 +16,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.util.Log
 import android.view.Display
 import android.view.Surface
 import androidx.core.app.NotificationCompat
@@ -26,7 +25,6 @@ import com.firstt175.deepdrop.prefs.CaptureSource
 import com.firstt175.deepdrop.prefs.FramegenBackend
 import com.firstt175.deepdrop.prefs.LsfgConfig
 import com.firstt175.deepdrop.prefs.LsfgPreferences
-import com.firstt175.deepdrop.prefs.PacingDefaults
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -70,14 +68,6 @@ class LsfgForegroundService : Service() {
     private var activeRenderW: Int = 0
     @Volatile
     private var activeRenderH: Int = 0
-    // Capture/context input size (post renderResolutionScale) and the backend
-    // label, kept for the HUD "backend · in → out" line — see pushStreamInfo().
-    @Volatile
-    private var activeInputW: Int = 0
-    @Volatile
-    private var activeInputH: Int = 0
-    @Volatile
-    private var activeBackendLabel: String = ""
     @Volatile
     private var currentPostGpuEnabled: Boolean = false
     @Volatile
@@ -453,13 +443,9 @@ class LsfgForegroundService : Service() {
                     cap.setLsfgNativeInputEnabled(false)
                     cap.setLsfgMode(scaledW, scaledH)
                 }
-                ov.updateStatus("LSFG-Android+: starting ${scaledW}×${scaledH} (of ${w}×${h})…")
+                ov.updateStatus("LSFG-Android+: starting…")
 
                 val cacheDir = File(filesDir, "spirv").absolutePath
-                val pacing = PacingDefaults.forPreset(
-                    cfg.pacingPreset,
-                    PacingDefaults.Params(cfg.emaAlpha, cfg.outlierRatio, cfg.vsyncSlackMs),
-                )
                 val ai = aiBackendArgs(cfg)
                 val rc = runCatching {
                     NativeBridge.initContext(
@@ -471,9 +457,9 @@ class LsfgForegroundService : Service() {
                         performance = cfg.performanceMode,
                         hdr = cfg.hdrMode,
                         framegenFp16 = cfg.framegenFp16,
-                        emaAlpha = pacing.emaAlpha,
-                        outlierRatio = pacing.outlierRatio,
-                        vsyncSlackMs = pacing.vsyncSlackMs,
+                        emaAlpha = 0.0f,
+                        outlierRatio = 0.0f,
+                        vsyncSlackMs = 0.0f,
                         gpuPostProcessing = cfg.gpuPostProcessing,
                         gpuUpscaleFactor = cfg.gpuUpscaleFactor,
                         gpuMethod = 0, // FSR1 EASU + RCAS
@@ -502,14 +488,10 @@ class LsfgForegroundService : Service() {
                         lsfgContextActive = true
                         activeRenderW = w
                         activeRenderH = h
-                        activeInputW = scaledW
-                        activeInputH = scaledH
-                        activeBackendLabel = backendLabel(cfg, ai)
                         currentPostGpuEnabled = cfg.gpuPostProcessing
                         currentPostGpuScale = cfg.gpuUpscaleFactor
                         currentPostNpuEnabled = cfg.npuPostProcessing
                         currentPostCpuEnabled = cfg.cpuPostProcessing
-                        pushStreamInfo()
                         cap?.setLsfgNativeInputEnabled(true)
                         if (isPrivilegedCapture) {
                             // Frame-gen is active and its native context was sized to
@@ -518,7 +500,7 @@ class LsfgForegroundService : Service() {
                             // the full display resolution.
                             pendingPrivilegedVideoStart = ShizukuVideoStart(scaledW, scaledH, cfg)
                         }
-                        ov.updateStatus("LSFG-Android+: frame-gen active ${w}×${h} ×${cfg.multiplier}")
+                        ov.updateStatus("LSFG-Android+: frame-gen active")
                     }
                     rc > 0 -> {
                         LsfgLog.w(TAG, "initContext rc=$rc — framegen disabled, staying in mirror mode")
@@ -528,7 +510,7 @@ class LsfgForegroundService : Service() {
                             activeRenderH = 0
                             pendingPrivilegedVideoStart = ShizukuVideoStart(w, h, cfg)
                             val label = if (captureSource == CaptureSource.ROOT) "Root" else "Shizuku"
-                            ov.updateStatus("LSFG-Android+: $label mirror ${w}×${h} (GPU lacks required Vulkan ext)")
+                            ov.updateStatus("LSFG-Android+: $label mirror active (GPU lacks required Vulkan ext)")
                         } else if (cap != null) {
                             cap.setSurface(surface, w, h)
                             activeRenderW = 0
@@ -549,9 +531,9 @@ class LsfgForegroundService : Service() {
                         if (isPrivilegedCapture && rc > 0) {
                             pendingPrivilegedVideoStart = ShizukuVideoStart(w, h, cfg)
                             val label = if (captureSource == CaptureSource.ROOT) "Root" else "Shizuku"
-                            ov.updateStatus("LSFG-Android+: $label mirror active ${w}×${h} (init rc=$rc)")
+                            ov.updateStatus("LSFG-Android+: $label mirror active (init rc=$rc)")
                         } else if (cap != null) {
-                            ov.updateStatus("LSFG-Android+: mirror active ${w}×${h} (init rc=$rc)")
+                            ov.updateStatus("LSFG-Android+: mirror active (init rc=$rc)")
                         } else {
                             ov.updateStatus("LSFG-Android+: init failed (rc=$rc)")
                         }
@@ -691,9 +673,6 @@ class LsfgForegroundService : Service() {
         dr.setLiveParamsListener {
             reinitLsfgContext()
         }
-        dr.setVsyncAlignmentListener { enabled ->
-            overlay?.setVsyncAlignmentEnabled(enabled)
-        }
         dr.show()
         drawer = dr
     }
@@ -768,54 +747,6 @@ class LsfgForegroundService : Service() {
     )
 
     /**
-     * Human-readable label for the HUD's "backend" line. Reflects what actually
-     * ended up running — not just what's selected in prefs — so a silent
-     * AI→DLL fallback (model missing, engine unavailable, etc.) shows up in
-     * the overlay instead of lying to the user about which path is active.
-     */
-    private fun backendLabel(cfg: LsfgConfig, ai: AiBackendArgs): String {
-        val wantsAi = cfg.framegenBackend == FramegenBackend.NCNN_AI
-        return when {
-            wantsAi && ai.enabled -> "AI (${cfg.aiEngine.name})"
-            wantsAi -> "AI requested, DLL fallback"
-            else -> "LSFG-DLL"
-        }
-    }
-
-    /**
-     * Pushes the current backend + input→output resolution to the HUD. Call
-     * this any time activeInputW/H, activeRenderW/H, or the backend changes —
-     * i.e. right after a successful (or fallback) initContext, both on first
-     * start and on reinit. Cheap and idempotent; the overlay only redraws
-     * this line, not the whole fps text, so it's safe to call often.
-     */
-    private fun pushStreamInfo() {
-        if (activeInputW <= 0 || activeInputH <= 0 || activeRenderW <= 0 || activeRenderH <= 0) return
-        // HUD's "→" side reports the *actual* output surface dimensions — i.e.
-        // exactly what NativeBridge.setOutputSurface(surface, w, h) was last
-        // called with (mirrored here via lastSurfaceW/H). That surface is the
-        // real on-screen destination the render loop blits into, so it's the
-        // ground truth for "what resolution is actually on the display right
-        // now" regardless of the internal pipeline's buffer sizes.
-        //
-        // Previously this recomputed an expected size from
-        // activeRenderW/H × the GPU-upscale factor, which only reflects the
-        // *internal* post-process buffer — not necessarily what ends up on
-        // screen (e.g. it silently drifted from reality whenever the post
-        // buffer didn't exactly match the output surface, or before the next
-        // context reinit picked up a scale change).
-        val finalW = if (lastSurfaceW > 0) lastSurfaceW else activeRenderW
-        val finalH = if (lastSurfaceH > 0) lastSurfaceH else activeRenderH
-        val postLabel = if (currentPostGpuEnabled || currentPostNpuEnabled || currentPostCpuEnabled) {
-            " · POST"
-        } else {
-            ""
-        }
-        val line = "$activeBackendLabel$postLabel · ${activeInputW}×${activeInputH} → ${finalW}×${finalH}"
-        overlay?.setStreamInfo(line)
-    }
-
-    /**
      * Applies [LsfgPreferences.renderResolutionScale] to a display/surface size,
      * clamped to [LsfgPreferences.MIN_RENDER_RESOLUTION_SCALE] so capture/context
      * buffers never collapse to 0 pixels. Both dimensions are floored at 1px.
@@ -888,10 +819,6 @@ class LsfgForegroundService : Service() {
                     runCatching { NativeBridge.destroyContext() }
                     lsfgContextActive = false
                 }
-                val pacing = PacingDefaults.forPreset(
-                    cfg.pacingPreset,
-                    PacingDefaults.Params(cfg.emaAlpha, cfg.outlierRatio, cfg.vsyncSlackMs),
-                )
                 // See the comment in onSurfaceReady: targetW/targetH here track the
                 // actual display/surface size (used below for geometry-change
                 // detection via activeRenderW/H) — the scaled pair is what actually
@@ -908,9 +835,9 @@ class LsfgForegroundService : Service() {
                         performance = cfg.performanceMode,
                         hdr = cfg.hdrMode,
                         framegenFp16 = cfg.framegenFp16,
-                        emaAlpha = pacing.emaAlpha,
-                        outlierRatio = pacing.outlierRatio,
-                        vsyncSlackMs = pacing.vsyncSlackMs,
+                        emaAlpha = 0.0f,
+                        outlierRatio = 0.0f,
+                        vsyncSlackMs = 0.0f,
                         gpuPostProcessing = cfg.gpuPostProcessing,
                         gpuUpscaleFactor = cfg.gpuUpscaleFactor,
                         gpuMethod = 0, // FSR1 EASU + RCAS
@@ -945,9 +872,6 @@ class LsfgForegroundService : Service() {
                     if (rc == 0) {
                         activeRenderW = targetW
                         activeRenderH = targetH
-                        activeInputW = scaledW
-                        activeInputH = scaledH
-                        activeBackendLabel = backendLabel(cfg, ai)
                         currentPostGpuEnabled = cfg.gpuPostProcessing
                         currentPostGpuScale = cfg.gpuUpscaleFactor
                         currentPostNpuEnabled = cfg.npuPostProcessing
@@ -958,15 +882,14 @@ class LsfgForegroundService : Service() {
                         startShizukuVideo(shizukuCapture, reinitTarget, scaledW, scaledH, cfg)
                         startRootVideo(rootCapture, reinitTarget, scaledW, scaledH, cfg)
                         mainHandler.post {
-                            ov.updateStatus("LSFG-Android+: ${lastSurfaceW}×${lastSurfaceH} ×${cfg.multiplier} flow=${"%.2f".format(cfg.flowScale)}")
-                            pushStreamInfo()
+                            ov.updateStatus("LSFG-Android+: frame-gen active")
                         }
                         // Reveal the overlay again now that setOutputSurface has
                         // re-attached at the new size. A short delay gives the
                         // native worker thread time to actually blit the first
                         // frame at the new dimensions rather than fading in onto
                         // whatever stale content is still sitting in the buffer.
-                        mainHandler.postDelayed({ ov.endGeometryTransition() }, 120L)
+                        mainHandler.post { ov.endGeometryTransition() }
                     } else {
                         LsfgLog.w(TAG, "reinit rc=$rc — framegen disabled, staying in mirror mode")
                         activeRenderW = 0
@@ -979,14 +902,14 @@ class LsfgForegroundService : Service() {
                             if ((shizukuCapture != null || rootCapture != null) && cap != null) {
                                 ov.updateStatus("LSFG-Android+: privileged capture unavailable for mirror fallback (frame-gen unavailable)")
                             } else if (cap != null) {
-                                ov.updateStatus("LSFG-Android+: mirror ${width}×${height} (GPU lacks required Vulkan ext)")
+                                ov.updateStatus("LSFG-Android+: mirror active (GPU lacks required Vulkan ext)")
                             } else {
                                 ov.updateStatus("LSFG-Android+: frame-gen unavailable (init rc=$rc)")
                             }
                         }
                         // Mirror fallback path also re-attaches a surface at the
                         // new size above (cap?.setSurface) — reveal once that's done.
-                        mainHandler.postDelayed({ ov.endGeometryTransition() }, 120L)
+                        mainHandler.post { ov.endGeometryTransition() }
                     }
                 } else {
                     LsfgLog.w(TAG, "reinit failed rc=$rc")
@@ -1014,18 +937,6 @@ class LsfgForegroundService : Service() {
             .onFailure { LsfgLog.e(TAG, "Launching $pkg failed", it) }
     }
 
-    private fun startShizukuMetrics(
-        engine: ShizukuCaptureEngine?,
-        targetPackage: String?,
-        width: Int,
-        height: Int,
-        cfg: com.firstt175.deepdrop.prefs.LsfgConfig,
-    ) {
-        if (engine == null || targetPackage == null) return
-        // Capture runs uncapped — no artificial frame-rate ceiling.
-        engine.startMetricsOnly(targetPackage, width, height, UNCAPPED_FPS)
-    }
-
     private fun startShizukuVideo(
         engine: ShizukuCaptureEngine?,
         targetPackage: String?,
@@ -1034,7 +945,7 @@ class LsfgForegroundService : Service() {
         cfg: com.firstt175.deepdrop.prefs.LsfgConfig,
     ) {
         if (engine == null || targetPackage == null) return
-        engine.startCapture(targetPackage, width, height, UNCAPPED_FPS)
+        engine.startCapture(targetPackage, width, height)
     }
 
     private fun startRootVideo(
@@ -1045,7 +956,7 @@ class LsfgForegroundService : Service() {
         cfg: com.firstt175.deepdrop.prefs.LsfgConfig,
     ) {
         if (engine == null || targetPackage == null) return
-        engine.startCapture(targetPackage, width, height, UNCAPPED_FPS)
+        engine.startCapture(targetPackage, width, height)
     }
 
     private data class ShizukuVideoStart(
@@ -1089,7 +1000,6 @@ class LsfgForegroundService : Service() {
         // frame-rate limiter has been removed. The receiving services no
         // longer throttle on this value (see RootCaptureService /
         // ShizukuCaptureUserService).
-        private const val UNCAPPED_FPS = Int.MAX_VALUE
         private const val CHANNEL_ID = "lsfg_session"
         private const val NOTIF_ID = 1001
 

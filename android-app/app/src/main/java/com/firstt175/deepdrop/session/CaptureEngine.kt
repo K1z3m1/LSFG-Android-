@@ -2,14 +2,12 @@ package com.firstt175.deepdrop.session
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
-import android.util.Log
 import android.view.Surface
 
 /**
@@ -84,7 +82,6 @@ class CaptureEngine(
 
     @Volatile
     private var fpsFrameCount: Long = 0
-    private var lastGeneratedCount: Long = 0L
 
     // 1 Hz FPS-counter window state — kept separate from the graph poller's
     // counters below so the two windows don't steal each other's deltas.

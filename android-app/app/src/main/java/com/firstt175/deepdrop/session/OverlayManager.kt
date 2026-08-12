@@ -19,7 +19,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.firstt175.deepdrop.prefs.LsfgPreferences
-import com.firstt175.deepdrop.prefs.VsyncRefreshOverride
 
 /**
  * Full-screen overlay that hosts a [TextureView] for the mirrored / LSFG-processed
@@ -69,44 +68,10 @@ class OverlayManager(private val ctx: Context) {
 
     @Volatile
     private var surfaceLostListener: (() -> Unit)? = null
-    private var requestedRefreshRateHz: Float = 0f
     private var overlayWidth: Int = 0
     private var overlayHeight: Int = 0
     private var lastFpsUpdateAtMs: Long = 0L
     private var lastGraphSampleAtMs: Long = 0L
-
-    // --- Live vsync tracking ---
-    //
-    // requestedRefreshRateHz above is the display's MAX supported mode
-    // (wm.defaultDisplay.supportedModes.maxOfOrNull{}), captured once in
-    // show(). That's fine as the *target* we ask for via requestMaxRefreshRate(),
-    // but it is NOT necessarily the rate SurfaceFlinger is actually running
-    // at: LTPO/adaptive-refresh panels (most current flagships) switch the
-    // active mode based on content, battery saver, thermal state, or simply
-    // because the setFrameRate() request wasn't honored. If the native
-    // pacer's vsyncPeriodNs is fed the wrong (max-mode) period while the
-    // panel is really compositing at a lower rate, sleepUntilVsyncAligned()
-    // aligns its sleeps to slots that don't exist, and the misalignment
-    // beats against the pacing loop — this is what produces the slow,
-    // periodic real/generated/total fps oscillation ("bunching" stutter)
-    // instead of a flat framerate.
-    //
-    // Choreographer.FrameCallback's frameTimeNanos is the ground truth: it's
-    // stamped by the display's actual vsync signal on every callback, so
-    // measuring consecutive deltas self-corrects for whatever the panel is
-    // really doing right now, with no assumption baked in. We smooth with an
-    // EMA (skipping missed-vsync outliers, which show up as ~integer
-    // multiples of the true period) and push corrections to the native side
-    // only when the estimate has actually moved, so we don't spam JNI calls
-    // every frame.
-    // Real value is set from LsfgPreferences.vsyncAlignmentEnabled in show(),
-    // and can be live-updated via setVsyncAlignmentEnabled() while the overlay
-    // is already showing (see SettingsDrawerOverlay's VSYNC switch).
-    private var vsyncLiveTrackingEnabled = false
-    private var lastVsyncFrameTimeNanos: Long = 0L
-    private var vsyncEmaNs: Double = 0.0
-    private var vsyncEmaSamples: Int = 0
-    private var lastPushedVsyncPeriodNs: Long = 0L
 
     /** Callback invoked every time the overlay Surface becomes valid for writing. */
     fun onSurfaceReady(cb: (Surface, Int, Int) -> Unit) {
@@ -146,48 +111,15 @@ class OverlayManager(private val ctx: Context) {
         val hostCtx: Context = if (useTrusted) a11y!! else ctx
         val wm = hostCtx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         hostWindowManager = wm
-
+        // Output pacing is intentionally uncapped. Display refresh/HZ is never used as a limiter.
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(metrics)
-        @Suppress("DEPRECATION")
-        requestedRefreshRateHz = wm.defaultDisplay.supportedModes
-            .maxOfOrNull { it.refreshRate }
-            ?: wm.defaultDisplay.refreshRate
-        // The native render loop is unlimited by default: MAILBOX presentation
-        // handles the queueing policy without a software frame limiter unless the
-        // user has explicitly opted into VSYNC-aligned pacing.
-        runCatching { NativeBridge.setVsyncPeriodNs(0L) }
-
-        // VSYNC-aligned pacing (and the Hz-based cap that comes with it) is
-        // opt-in. vsyncLiveTrackingEnabled used to be hardcoded true, so even
-        // with the setting off, trackLiveVsync() would measure the panel's real
-        // vsync period and push it back to the native pacer a few dozen frames
-        // later — silently re-enabling a Hz-based frame limiter the user had
-        // just turned off (or never turned on). Gate it on the persisted
-        // preference instead, and reset the EMA so a fresh show() never resumes
-        // from a stale estimate.
-        vsyncLiveTrackingEnabled = prefs.vsyncAlignmentEnabled
-        lastVsyncFrameTimeNanos = 0L
-        vsyncEmaNs = 0.0
-        vsyncEmaSamples = 0
-        lastPushedVsyncPeriodNs = 0L
-        if (prefs.vsyncAlignmentEnabled) {
-            val override = prefs.vsyncRefreshOverride
-            if (override != VsyncRefreshOverride.AUTO && override.hz > 0) {
-                val periodNs = (1_000_000_000.0 / override.hz).toLong()
-                runCatching { NativeBridge.setVsyncPeriodNs(periodNs) }
-                lastPushedVsyncPeriodNs = periodNs
-            }
-            // AUTO: period stays 0 for now — trackLiveVsync() measures the
-            // real panel rate and pushes it once its EMA settles (~30 frames).
-        }
-
         val screenW = metrics.widthPixels
         val screenH = metrics.heightPixels
         overlayWidth = screenW
         overlayHeight = screenH
-        Log.i(TAG, "Showing overlay at ${screenW}x${screenH} targetRefresh=${requestedRefreshRateHz}Hz")
+        Log.i(TAG, "Showing overlay at ${screenW}x${screenH}")
 
         val layoutType = when {
             useTrusted -> WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
@@ -287,7 +219,6 @@ class OverlayManager(private val ctx: Context) {
                 val s = Surface(st)
                 producerSurface = s
                 syncOverlayGeometry()
-                requestMaxRefreshRate(s)
                 Log.i(TAG, "TextureView surface available ${width}x${height} valid=${s.isValid} hwAccel=${tex.isHardwareAccelerated}")
                 if (s.isValid) {
                     surfaceReadyListener?.invoke(s, overlayWidth, overlayHeight)
@@ -307,8 +238,7 @@ class OverlayManager(private val ctx: Context) {
                 val s = producerSurface
                 syncOverlayGeometry()
                 if (s != null) {
-                    requestMaxRefreshRate(s)
-                    Log.i(TAG, "TextureView size changed ${width}x${height}")
+                        Log.i(TAG, "TextureView size changed ${width}x${height}")
                     if (s.isValid) {
                         surfaceReadyListener?.invoke(s, overlayWidth, overlayHeight)
                     }
@@ -453,7 +383,7 @@ class OverlayManager(private val ctx: Context) {
         // reason (context reinit skipped, capture never re-attaches, etc.)
         // this guarantees the content doesn't stay hidden forever — it's a
         // no-op if endGeometryTransition() already ran.
-        r.postDelayed({ endGeometryTransition() }, 2500L)
+        r.post { endGeometryTransition() }
     }
 
     fun updateStatus(line: String) {
@@ -480,53 +410,9 @@ class OverlayManager(private val ctx: Context) {
         loadingView?.post { loadingView?.visibility = View.GONE }
     }
 
-    // "<backend> · POST · <pipeline-in>×<pipeline-in> → <final>×<final>" — set once per (re)init by
-    // LsfgForegroundService.pushStreamInfo(), not on every fps tick, since
-    // backend/resolution only change on a context reinit. Kept separate from
-    // the fps line so updateFps()'s 250 ms throttle doesn't also gate this.
-    @Volatile
-    private var streamInfoLine: String = ""
-
-    /**
-     * Live-toggles VSYNC-aligned pacing from the settings overlay without
-     * requiring the capture overlay to be torn down and re-shown.
-     *
-     * SettingsDrawerOverlay's own switch handler already pushes the immediate
-     * `NativeBridge.setVsyncPeriodNs(0L)` (off) or override period (on) call;
-     * this additionally updates [vsyncLiveTrackingEnabled] so `trackLiveVsync()`
-     * — which runs every frame off the Choreographer callback — stops
-     * overwriting that with its own measured period a fraction of a second
-     * later when the user just turned pacing off, and resumes clean
-     * measurement (rather than an estimate computed from before the toggle)
-     * when the user turns it on.
-     */
-    fun setVsyncAlignmentEnabled(enabled: Boolean) {
-        vsyncLiveTrackingEnabled = enabled
-        lastVsyncFrameTimeNanos = 0L
-        vsyncEmaNs = 0.0
-        vsyncEmaSamples = 0
-        lastPushedVsyncPeriodNs = 0L
-        if (!enabled) {
-            runCatching { NativeBridge.setVsyncPeriodNs(0L) }
-        }
-    }
-
     fun setFpsVisible(visible: Boolean) {
         fpsView?.post { fpsView?.visibility = if (visible) View.VISIBLE else View.GONE }
     }
-
-    /**
-     * Sets the static "backend · in→out resolution" line shown above the fps
-     * line in the HUD, e.g. "LSFG-DLL · 1280×720 → 1920×1080". Safe to call
-     * even when the fps view isn't visible yet — it just updates the text
-     * that the next updateFps() call will build on.
-     */
-    fun setStreamInfo(line: String) {
-        streamInfoLine = line
-        val v = fpsView ?: return
-        v.post { v.text = if (v.text.isNullOrEmpty()) line else v.text }
-    }
-
     fun updateFps(capturedFps: Float, postedFps: Float) {
         val v = fpsView ?: return
         if (v.visibility != View.VISIBLE) return
@@ -535,8 +421,7 @@ class OverlayManager(private val ctx: Context) {
         lastFpsUpdateAtMs = now
         val queueMs = runCatching { NativeBridge.getAverageQueueMs() }.getOrDefault(0.0)
         val latencyMs = runCatching { NativeBridge.getAverageLatencyMs() }.getOrDefault(0.0)
-        val fpsLine = "real ${"%.1f".format(capturedFps)} fps · total ${"%.1f".format(postedFps)} fps (latency: ${"%.1f".format(latencyMs)} ms · queue: ${"%.1f".format(queueMs)} ms)"
-        val text = if (streamInfoLine.isNotEmpty()) "$streamInfoLine\n$fpsLine" else fpsLine
+        val text = "real ${"%.1f".format(capturedFps)} fps · total ${"%.1f".format(postedFps)} fps (latency: ${"%.1f".format(latencyMs)} ms · queue: ${"%.1f".format(queueMs)} ms)"
         v.post { v.text = text }
     }
 
@@ -567,7 +452,6 @@ class OverlayManager(private val ctx: Context) {
         if (wm != null) {
             runCatching { wm.removeView(r) }
         }
-        runCatching { NativeBridge.setVsyncPeriodNs(0L) }
         runCatching { producerSurface?.release() }
         producerSurface = null
         root = null
@@ -685,20 +569,6 @@ class OverlayManager(private val ctx: Context) {
             removeMethod.invoke(host.viewTreeObserver, listener)
         }.onFailure { Log.w(TAG, "removeOnComputeInternalInsetsListener failed", it) }
     }
-
-    private fun requestMaxRefreshRate(surface: Surface) {
-        if (!surface.isValid || requestedRefreshRateHz <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            return
-        }
-        runCatching {
-            surface.setFrameRate(
-                requestedRefreshRateHz,
-                Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
-                Surface.CHANGE_FRAME_RATE_ALWAYS,
-            )
-        }.onFailure { Log.w(TAG, "setFrameRate(${requestedRefreshRateHz}Hz) failed", it) }
-    }
-
     private fun syncOverlayGeometry() {
         val wm = hostWindowManager ?: return
         val r = root ?: return
@@ -939,7 +809,6 @@ class OverlayManager(private val ctx: Context) {
             override fun doFrame(frameTimeNanos: Long) {
                 if (frameLoopCallback === this) {
                     tex.invalidate()
-                    if (vsyncLiveTrackingEnabled) trackLiveVsync(frameTimeNanos)
                     Choreographer.getInstance().postFrameCallback(this)
                 }
             }
@@ -947,60 +816,12 @@ class OverlayManager(private val ctx: Context) {
         frameLoopCallback = cb
         Choreographer.getInstance().postFrameCallback(cb)
     }
-
-    // EMA alpha for the live vsync period estimate. Deliberately slower than
-    // the 5 Hz frame-graph EMA (alpha=0.35) — the panel's true refresh rate
-    // only changes on discrete mode switches, so we want to reject ordinary
-    // scheduler jitter almost completely rather than track it.
-    private val kVsyncEmaAlpha = 0.05
-    // A delta of > 1.5x the current estimate means Choreographer skipped a
-    // vsync (dropped frame on our own draw, not the panel changing rate) —
-    // treat it as a missed beat, not a new period, and ignore it for the EMA.
-    private val kMissedVsyncRatio = 1.5
-    // Re-push to native only when the estimate has moved by more than this
-    // fraction since the last push, so we don't fire a JNI call every frame.
-    private val kPushThresholdRatio = 0.03
-
-    private fun trackLiveVsync(frameTimeNanos: Long) {
-        val prev = lastVsyncFrameTimeNanos
-        lastVsyncFrameTimeNanos = frameTimeNanos
-        if (prev <= 0L) return
-        val deltaNs = frameTimeNanos - prev
-        if (deltaNs <= 0L) return
-
-        if (vsyncEmaSamples == 0) {
-            vsyncEmaNs = deltaNs.toDouble()
-            vsyncEmaSamples = 1
-        } else if (deltaNs.toDouble() <= kMissedVsyncRatio * vsyncEmaNs) {
-            vsyncEmaNs = kVsyncEmaAlpha * deltaNs + (1.0 - kVsyncEmaAlpha) * vsyncEmaNs
-            vsyncEmaSamples++
-        }
-        // else: likely a missed-vsync multiple (our own dropped draw) — skip,
-        // don't let it drag the estimate toward a fake slower rate.
-
-        // Give the EMA a few dozen samples to settle before trusting it over
-        // the initial supportedModes guess, then only push on real movement.
-        if (vsyncEmaSamples < 30) return
-        val estimateNs = vsyncEmaNs.toLong()
-        if (lastPushedVsyncPeriodNs <= 0L ||
-            kotlin.math.abs(estimateNs - lastPushedVsyncPeriodNs).toDouble() >
-                kPushThresholdRatio * lastPushedVsyncPeriodNs
-        ) {
-            runCatching { NativeBridge.setVsyncPeriodNs(estimateNs) }
-            lastPushedVsyncPeriodNs = estimateNs
-        }
-    }
-
     private fun stopFrameLoop() {
         val cb = frameLoopCallback
         frameLoopCallback = null
         if (cb != null) {
             Choreographer.getInstance().removeFrameCallback(cb)
         }
-        // Reset so a resumed loop doesn't compute one bogus giant delta
-        // across the gap (which would otherwise get treated as a real
-        // sample since it's the very first one after reset).
-        lastVsyncFrameTimeNanos = 0L
     }
 
     companion object {

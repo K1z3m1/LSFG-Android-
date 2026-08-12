@@ -25,6 +25,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <cstring>
 #include <cmath>
 #include <functional>
@@ -219,33 +220,16 @@ struct State {
 
 
 
-    // Single-slot mailbox for the next frame to process. We acquire a ref on
-    // the AHB so it survives beyond the caller's Image.close(). Drained by
-    // the worker thread.
-    //
-    // This is intentionally NOT a FIFO queue. A multi-frame backlog (the
-    // previous design allowed up to queueDepth=6) meant a burst of captures
-    // could sit unconsumed for hundreds of ms before the worker got to them,
-    // and when the backlog overflowed we silently dropped whichever frame
-    // was at the front — an explicit "skip" path that hurt continuity for
-    // no benefit, since a frame that old was already too stale to matter.
-    //
-    // With a single mailbox slot there is nothing to skip: at most one
-    // not-yet-picked-up frame ever exists. If a newer capture arrives before
-    // the worker has taken the previous one, the previous one is replaced
-    // (and its AHB ref released) immediately — but that's always safe,
-    // because a frame sitting in `latest` has never been imported/used by
-    // the GPU pipeline yet (only pushFrame and workerThread touch it, both
-    // under `mu`, and workerThread removes it from the slot before doing
-    // anything with it). So we never discard a frame that's mid-flight —
-    // only ones that were never used at all — while always handing the
-    // worker the freshest capture available.
+    // FIFO input stream. Every captured frame is handed to the render worker
+    // in arrival order. There is deliberately no software FPS ceiling,
+    // refresh-rate pacing, mailbox replacement, or queue-depth drop policy.
+    // The AHB reference keeps each frame alive until the worker consumes it.
     struct PendingFrame {
         AHardwareBuffer *ahb = nullptr;
         Clock::time_point queuedAt{};
         int64_t captureTimestampNs = 0;
     };
-    std::optional<PendingFrame> latest;
+    std::deque<PendingFrame> pendingFrames;
     std::condition_variable pendingCv;
     bool stopRequested = false;
 
@@ -310,25 +294,6 @@ struct State {
 
 State g{};
 
-struct ShizukuTimingSample {
-    bool enabled = false;
-    int64_t timestampNs = 0;
-    int64_t frameTimeNs = 0;
-    int64_t pacingJitterNs = 0;
-};
-
-ShizukuTimingSample loadShizukuTimingSample() {
-    return {
-        .enabled = g.shizukuTimingEnabled.load(std::memory_order_relaxed),
-        .timestampNs = g.shizukuSampleTimestampNs.load(std::memory_order_relaxed),
-        .frameTimeNs = g.shizukuFrameTimeNs.load(std::memory_order_relaxed),
-        .pacingJitterNs = g.shizukuPacingJitterNs.load(std::memory_order_relaxed),
-    };
-}
-
-// Apply pacing tunables to `g` with sane clamps. Zero/negative values
-// fall back to defaults so partial updates from JNI can't accidentally
-// disable the pacer.
 void handleFramegenException(const char *callSite, const std::exception &e) {
     const char *what = e.what() != nullptr ? e.what() : "(null)";
     LOGE("%s threw: %s", callSite, what);
@@ -341,19 +306,6 @@ void handleFramegenException(const char *callSite, const std::exception &e) {
     }
 }
 
-float clamp01(float value) {
-    return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
-}
-
-// Sleep until `deadline`, but if we know the display's vsync period, nudge
-// the target to a vsync boundary. `lastPostedAt` is the wall time of the most
-// recent ANativeWindow_unlockAndPost call — if the computed deadline lies in
-// the same vsync slot as that post, we push it to the NEXT boundary so the
-// SurfaceFlinger queue doesn't collapse two buffers onto one flip (which is
-// what produces the steady-state "bunched" stutter we see with multiplier≥2).
-//
-// Returns the (possibly adjusted) wake time so the caller can advance its
-// own deadline chain consistently.
 // Record a successful post (WSI present) for HUD metrics.
 // Increments postedFrames and pushes the current steady-clock timestamp into
 // the ring buffer so the pacing graph can compute real inter-frame intervals.
@@ -1567,8 +1519,7 @@ void workerThread() {
     //   blit     — output blit loop (CPU memcpy + ANativeWindow_unlockAndPost,
     //              one per generated + real frame)
     //   total    — frameWorkStartedAt → end of blit loop
-    // pacing sleep_until() time is intentionally NOT included — that's the
-    // worker idling on purpose to honor the next vsync, not work.
+    // There is no pacing sleep in the render path.
     struct ProfileAccum {
         int64_t copyNs    = 0;
         int64_t presentNs = 0;
@@ -1584,19 +1535,6 @@ void workerThread() {
 
     // The GPU swapchain owns presentation; no CPU-side surface clear or pixel
     // copy is performed in the hot path.
-    // Drain any frames that were buffered during shader compilation.  Those
-    // frames were captured while the overlay may have been dark (stale content
-    // from a prior session), so feeding them into framegen would re-seed the
-    // feedback loop.  Drop them now that we have posted a transparent clear.
-    {
-        std::unique_lock<std::mutex> lock(g.mu);
-        if (g.latest.has_value()) {
-            LOGI("workerThread: draining stale init frame");
-            if (g.latest->ahb) AHardwareBuffer_release(g.latest->ahb);
-            g.latest.reset();
-        }
-    }
-
     // LSFG's present API currently does not require output semaphores from
     // this Android bridge. Keep one reusable empty vector instead of constructing
     // a temporary vector on every frame.
@@ -1606,10 +1544,10 @@ void workerThread() {
         State::PendingFrame pendingFrame{};
         {
             std::unique_lock<std::mutex> lock(g.mu);
-            g.pendingCv.wait(lock, []{ return g.stopRequested || g.latest.has_value(); });
-            if (g.stopRequested && !g.latest.has_value()) return;
-            pendingFrame = *g.latest;
-            g.latest.reset();
+            g.pendingCv.wait(lock, []{ return g.stopRequested || !g.pendingFrames.empty(); });
+            if (g.stopRequested && g.pendingFrames.empty()) return;
+            pendingFrame = g.pendingFrames.front();
+            g.pendingFrames.pop_front();
         }
         const auto frameWorkStartedAt = State::Clock::now();
         prof.queueNs += std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -2183,25 +2121,13 @@ void pushFrame(AHardwareBuffer *ahb, int64_t timestampNs) {
             AHardwareBuffer_release(ahb);
             return;
         }
-        // Mailbox, not a FIFO: at most one not-yet-picked-up frame waits here.
-        // If the worker hasn't taken the previous capture yet, that frame was
-        // never fed to framegen — it was never imported, never copied into an
-        // input slot, never touched by the GPU — so releasing it now is safe
-        // and loses nothing that was ever "used". We replace it with the
-        // freshest capture immediately rather than letting a backlog build:
-        // a multi-frame backlog is what used to force an explicit drop-the-
-        // oldest step once it saturated, which is the skip/drop behaviour we
-        // no longer want. Every frame that IS handed to the worker (see
-        // workerThread's pop below) runs the full pipeline — nothing is ever
-        // skipped mid-flight once it's been picked up.
-        if (g.latest.has_value()) {
-            AHardwareBuffer_release(g.latest->ahb);
-        }
-        g.latest = State::PendingFrame{
+        // Straight-through FIFO: never replace/drop an input frame because
+        // of source FPS, display Hz, or an arbitrary queue-depth ceiling.
+        g.pendingFrames.push_back(State::PendingFrame{
             .ahb = ahb,
             .queuedAt = State::Clock::now(),
             .captureTimestampNs = timestampNs,
-        };
+        });
     }
     g.pendingCv.notify_one();
 }
@@ -2216,9 +2142,9 @@ void shutdownRenderLoop() {
 
     {
         std::lock_guard<std::mutex> lock(g.mu);
-        if (g.latest.has_value()) {
-            AHardwareBuffer_release(g.latest->ahb);
-            g.latest.reset();
+        while (!g.pendingFrames.empty()) {
+            AHardwareBuffer_release(g.pendingFrames.front().ahb);
+            g.pendingFrames.pop_front();
         }
 
         if (g.framegenCtxId >= 0) {

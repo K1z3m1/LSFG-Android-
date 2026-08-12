@@ -44,7 +44,6 @@ class ShizukuCaptureEngine(
     private var graphFrameCount: Long = 0
     private var fpsWindowStartMs: Long = 0L
     private var graphWindowStartMs: Long = 0L
-    private var lastGeneratedCount: Long = 0L
     private var graphLastGeneratedCount: Long = 0L
     private var lastUniqueCaptureCount: Long = 0L
     private var graphLastUniqueCaptureCount: Long = 0L
@@ -57,7 +56,7 @@ class ShizukuCaptureEngine(
             service = binder?.takeIf { it.pingBinder() }?.let { IShizukuCaptureService.Stub.asInterface(it) }
             val start = pendingStart
             if (start != null) {
-                startCapture(start.targetPackage, start.width, start.height, start.maxFps)
+                startCapture(start.targetPackage, start.width, start.height)
             }
         }
 
@@ -84,17 +83,17 @@ class ShizukuCaptureEngine(
         }.getOrDefault(false)
     }
 
-    fun startCapture(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    fun startCapture(targetPackage: String, width: Int, height: Int) {
         metricsOnly = false
-        startCaptureInternal(targetPackage, width, height, maxFps)
+        startCaptureInternal(targetPackage, width, height)
     }
 
-    fun startMetricsOnly(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    fun startMetricsOnly(targetPackage: String, width: Int, height: Int) {
         metricsOnly = true
-        startCaptureInternal(targetPackage, width, height, maxFps)
+        startCaptureInternal(targetPackage, width, height)
     }
 
-    private fun startCaptureInternal(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    private fun startCaptureInternal(targetPackage: String, width: Int, height: Int) {
         val targetUid = runCatching {
             ctx.packageManager.getApplicationInfo(targetPackage, 0).uid
         }.getOrElse {
@@ -102,7 +101,7 @@ class ShizukuCaptureEngine(
             return
         }
 
-        val args = StartArgs(targetPackage, width, height, maxFps)
+        val args = StartArgs(targetPackage, width, height)
         pendingStart = args
         val svc = service
         if (svc == null || !svc.asBinder().pingBinder()) {
@@ -110,7 +109,7 @@ class ShizukuCaptureEngine(
             return
         }
         runCatching {
-            svc.startCapture(targetUid, width, height, maxFps, frameCallback)
+            svc.startCapture(targetUid, width, height, frameCallback)
             LsfgLog.i(TAG, "Shizuku ${if (metricsOnly) "metrics" else "capture"} started package=$targetPackage uid=$targetUid ${width}x${height}")
         }.onFailure {
             LsfgLog.w(TAG, "Shizuku startCapture failed", it)
@@ -295,7 +294,6 @@ class ShizukuCaptureEngine(
         val targetPackage: String,
         val width: Int,
         val height: Int,
-        val maxFps: Int,
     )
 
     companion object {

@@ -49,7 +49,7 @@ class RootCaptureEngine(private val ctx: Context) {
             service = binder?.takeIf { it.pingBinder() }
                 ?.let { IShizukuCaptureService.Stub.asInterface(it) }
             pendingStart?.let { start ->
-                startCaptureInternal(start.targetPackage, start.width, start.height, start.maxFps)
+                startCaptureInternal(start.targetPackage, start.width, start.height)
             }
         }
 
@@ -68,17 +68,17 @@ class RootCaptureEngine(private val ctx: Context) {
 
     fun isReady(): Boolean = Shell.isAppGrantedRoot() == true
 
-    fun startCapture(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    fun startCapture(targetPackage: String, width: Int, height: Int) {
         metricsOnly = false
-        startCaptureInternal(targetPackage, width, height, maxFps)
+        startCaptureInternal(targetPackage, width, height)
     }
 
-    fun startMetricsOnly(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    fun startMetricsOnly(targetPackage: String, width: Int, height: Int) {
         metricsOnly = true
-        startCaptureInternal(targetPackage, width, height, maxFps)
+        startCaptureInternal(targetPackage, width, height)
     }
 
-    private fun startCaptureInternal(targetPackage: String, width: Int, height: Int, maxFps: Int) {
+    private fun startCaptureInternal(targetPackage: String, width: Int, height: Int) {
         val targetUid = runCatching {
             ctx.packageManager.getApplicationInfo(targetPackage, 0).uid
         }.getOrElse {
@@ -86,14 +86,14 @@ class RootCaptureEngine(private val ctx: Context) {
             return
         }
 
-        pendingStart = StartArgs(targetPackage, width, height, maxFps)
+        pendingStart = StartArgs(targetPackage, width, height)
         val svc = service
         if (svc == null || !svc.asBinder().pingBinder()) {
             bind()
             return
         }
         runCatching {
-            svc.startCapture(targetUid, width, height, maxFps, frameCallback)
+            svc.startCapture(targetUid, width, height, frameCallback)
             LsfgLog.i(TAG, "Root ${if (metricsOnly) "metrics" else "capture"} started pkg=$targetPackage uid=$targetUid ${width}x${height}")
         }.onFailure {
             LsfgLog.w(TAG, "Root startCapture failed", it)
@@ -268,7 +268,6 @@ class RootCaptureEngine(private val ctx: Context) {
         val targetPackage: String,
         val width: Int,
         val height: Int,
-        val maxFps: Int,
     )
 
     companion object {
