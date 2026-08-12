@@ -159,17 +159,14 @@ uint32_t getProfileWindowNs(int64_t *out, uint32_t cap);
 // A/B comparisons against the generated output. Safe to call from any thread.
 void setBypass(bool bypass);
 
-// Report the display's vsync period in nanoseconds (e.g. 16_666_666 for a
-// 60 Hz display, 8_333_333 for 120 Hz). When set to a positive value the
-// pacing loop aligns its sleep targets to vsync boundaries so consecutive
-// ANativeWindow_unlockAndPost calls land on distinct vsync slots, avoiding
-// the double-post → SurfaceFlinger-stall pattern that shows as periodic
-// stutter. Passing 0 falls back to raw sleep_until.
+// Compat shim — kept for ABI/API stability. The render loop no longer
+// paces or sleeps to a vsync boundary; frames are pushed to the output
+// surface as soon as they're ready. This call is a no-op.
 void setVsyncPeriodNs(int64_t periodNs);
 
-// Hot-apply pacing tunables without tearing down the render loop. Parameters
-// fall back to their defaults when outside a sane range. Safe to call from
-// any thread.
+// Compat shim — kept for ABI/API stability. No software pacing/frame
+// limiter runs in the native hot path, so there are no tunables to apply.
+// This call is a no-op.
 void setPacingParams(float emaAlpha,
                      float outlierRatio,
                      float vsyncSlackMs);

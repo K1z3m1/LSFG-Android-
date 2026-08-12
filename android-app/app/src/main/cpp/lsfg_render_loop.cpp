@@ -220,10 +220,11 @@ struct State {
 
 
 
-    // FIFO input stream. Every captured frame is handed to the render worker
-    // in arrival order. There is deliberately no software FPS ceiling,
-    // refresh-rate pacing, mailbox replacement, or queue-depth drop policy.
-    // The AHB reference keeps each frame alive until the worker consumes it.
+    // Mailbox input stream, not a queue. pushFrame() drops any frame the
+    // render worker hasn't picked up yet before enqueueing the newest one —
+    // at most one frame is ever in flight. There is deliberately no
+    // software FPS ceiling or refresh-rate pacing either. The AHB reference
+    // keeps the held frame alive until the worker consumes it.
     struct PendingFrame {
         AHardwareBuffer *ahb = nullptr;
         Clock::time_point queuedAt{};
@@ -2121,8 +2122,14 @@ void pushFrame(AHardwareBuffer *ahb, int64_t timestampNs) {
             AHardwareBuffer_release(ahb);
             return;
         }
-        // Straight-through FIFO: never replace/drop an input frame because
-        // of source FPS, display Hz, or an arbitrary queue-depth ceiling.
+        // Mailbox, not a queue: drop any frame(s) still waiting from a
+        // previous pushFrame that the render thread hasn't picked up yet,
+        // then enqueue only the newest one. At most one frame is ever
+        // in flight here — no backlog, no queueing delay.
+        while (!g.pendingFrames.empty()) {
+            AHardwareBuffer_release(g.pendingFrames.front().ahb);
+            g.pendingFrames.pop_front();
+        }
         g.pendingFrames.push_back(State::PendingFrame{
             .ahb = ahb,
             .queuedAt = State::Clock::now(),

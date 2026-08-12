@@ -310,18 +310,19 @@ class CaptureEngine(
         val reader = ImageReader.newInstance(
             width, height, PixelFormat.RGBA_8888,
             /* maxImages */
-            // Keep a slightly deeper queue than the mirror path so we can
-            // preserve consecutive captures for framegen instead of constantly
-            // collapsing to the latest frame during fast camera motion.
-            5,
+            // Mailbox-style: acquireLatestImage() below drains and discards
+            // any older backlog on every callback, so 2 is enough headroom
+            // for the producer/consumer handoff — no queueing is intended.
+            2,
             android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or
                     android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
         )
         reader.setOnImageAvailableListener({ r ->
-            // In LSFG mode we want temporal continuity more than minimum latency:
-            // dropping to "latest" makes consecutive inputs farther apart in time,
-            // which is exactly what produces torso/character warping on fast pans.
-            val img = runCatching { r.acquireNextImage() }.getOrNull() ?: return@setOnImageAvailableListener
+            // Mailbox, not a queue: always take the newest frame and drop
+            // anything older that piled up since the last callback. Trades
+            // the temporal continuity a FIFO would give framegen for lower
+            // latency — no frame is held onto waiting to be processed.
+            val img = runCatching { r.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
             try {
                 onCaptureFrameArrived()
                 val hb = img.hardwareBuffer
